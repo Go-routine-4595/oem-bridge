@@ -1,0 +1,59 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "API for Metrics",
+        "title": "Metrics API",
+        "contact": {},
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.0"
+    },
+    "host": "www.zogfestiv.store",
+    "basePath": "/",
+    "paths": {
+        "/metrics": {
+            "get": {
+                "description": "provides RabbitMQ metrics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "example"
+                ],
+                "summary": "metrics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.QueueInfo"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "api.QueueInfo": {
+            "type": "object",
+            "properties": {
+                "messages": {
+                    "type": "integer"
+                },
+                "messages_ready": {
+                    "type": "integer"
+                },
+                "messages_unacknowledged": {
+                    "type": "integer"
+                }
+            }
+        }
+    }
+}
