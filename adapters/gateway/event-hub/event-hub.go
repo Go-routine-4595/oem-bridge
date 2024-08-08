@@ -45,6 +45,7 @@ func NewEventHub(ctx context.Context, wg *sync.WaitGroup, conf EventHubConfig) (
 	go func() {
 		<-ctx.Done()
 		err = producerClient.Close(ctx)
+		l.Info().Msg("Event Hub connection closed")
 		if err != nil {
 			l.Error().Err(err).Msg("failed to close producer client")
 		}

@@ -22,6 +22,7 @@ import (
 
 // API swagger doc generation
 // https://github.com/swaggo/swag?tab=readme-ov-file#getting-started
+// https://github.com/swaggo/swag?tab=readme-ov-file#declarative-comments-format
 // command to generate doc after update
 // swag init -g ./adapters/controller/api/api.go -o docs
 

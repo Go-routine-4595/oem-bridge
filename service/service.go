@@ -2,7 +2,7 @@ package service
 
 import (
 	"github.com/Go-routine-4595/oem-bridge/model"
-	"strconv"
+	"github.com/rs/zerolog/log"
 	"time"
 )
 
@@ -31,8 +31,10 @@ func (s *Service) SendAlarm(value []byte) error {
 		SensorId:   "UAS-OEM-alarms",
 		Uom:        "alarm",
 		DataSource: "Honeywell",
-		Value:      strconv.Quote(string(value)),
+		Value:      string(value),
 	}
+
+	log.Debug().Str("event", event.Value).Msg("sending alarm")
 
 	return s.gateway.SendAlarm(event)
 }
