@@ -2,6 +2,7 @@ package event_hub
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"github.com/Go-routine-4595/oem-bridge/model"
@@ -22,6 +23,7 @@ import (
 type EventHubConfig struct {
 	Connection   string `yaml:"connection"`
 	EventHubName string `yaml:"EventHubName"`
+	LogLevel     int    `yaml:"LogLevel"`
 }
 
 type EventHub struct {
@@ -33,10 +35,20 @@ func NewEventHub(ctx context.Context, wg *sync.WaitGroup, conf EventHubConfig) (
 		err            error
 		producerClient *azeventhubs.ProducerClient
 		l              zerolog.Logger
+		cfg            *tls.Config
+		clientOptions  *azeventhubs.ProducerClientOptions
 	)
-	l = zerolog.New(os.Stdout).Level(zerolog.InfoLevel).With().Timestamp().Caller().Logger()
+	l = zerolog.New(os.Stdout).Level(zerolog.InfoLevel + zerolog.Level(conf.LogLevel)).With().Timestamp().Caller().Logger()
 
-	producerClient, err = azeventhubs.NewProducerClientFromConnectionString(conf.Connection, conf.EventHubName, nil)
+	cfg = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	clientOptions = &azeventhubs.ProducerClientOptions{
+		ApplicationID: "oem-alarms",
+		TLSConfig:     cfg,
+	}
+
+	producerClient, err = azeventhubs.NewProducerClientFromConnectionString(conf.Connection, conf.EventHubName, clientOptions)
 
 	if err != nil {
 		return nil, errors.Join(err, errors.New("failed to create producer client"))

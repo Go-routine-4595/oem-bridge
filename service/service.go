@@ -26,7 +26,7 @@ func (s *Service) SendAlarm(value []byte) error {
 	)
 
 	event = model.FCTSDataModel{
-		SiteCode:   "SIE",
+		SiteCode:   "NAMEM",
 		TimeStamp:  time.Now().Unix(),
 		SensorId:   "UAS-OEM-alarms",
 		Uom:        "alarm",

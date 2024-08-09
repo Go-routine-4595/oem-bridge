@@ -1,0 +1,12 @@
+version: '1'
+services:
+  oem-bridge:
+    build: .
+    image: oem-bridge:0.2
+    ports:
+      - 8090:8090
+    networks:
+      - mynetwork
+networks:
+  mynetwork:
+    driver: bridge

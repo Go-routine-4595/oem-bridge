@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"crypto/tls"
 	"os"
 	"sync"
 	"time"
@@ -21,6 +22,7 @@ type Controller struct {
 	MgtUrl           string
 	conn             *amqp.Connection
 	channel          *amqp.Channel
+	cfg              *tls.Config
 }
 
 func NewController(conf controller.ControllerConfig, svc model.IService) *Controller {
@@ -34,10 +36,20 @@ func NewController(conf controller.ControllerConfig, svc model.IService) *Contro
 	}
 }
 
+// loadCert load CA certificate to connect to AMQP server with authentication
+func (c *Controller) loadCert() error {
+	c.cfg = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	return nil
+}
+
 // connect establishes a new connection and channel
 func (c *Controller) connect() error {
 	var err error
-	c.conn, err = amqp.Dial(c.ConnectionString)
+
+	// c.conn, err = amqp.Dial(c.ConnectionString)
+	c.conn, err = amqp.DialTLS(c.ConnectionString, c.cfg)
 	if err != nil {
 		return err
 	}
@@ -80,6 +92,10 @@ func (c *Controller) reconnect() {
 func (c *Controller) Start(ctx context.Context, wg *sync.WaitGroup) {
 	var err error
 
+	err = c.loadCert()
+	if err != nil {
+		c.logger.Fatal().Err(err).Msg("Failed to load CA certificate")
+	}
 	err = c.connect()
 	if err != nil {
 		c.logger.Fatal().Err(err).Msg("Failed to connect to RabbitMQ")

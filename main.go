@@ -25,10 +25,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	config  = "config2.yaml"
+	version = 0.1
+)
+
+var CompileDate string
+
 type Config struct {
 	controller.ControllerConfig `yaml:"ControllerConfig"`
 	event_hub.EventHubConfig    `yaml:"EventHubConfig"`
 	Duration                    int `yaml:"Duration"`
+	LogLevel                    int `yaml:"LogLevel"`
 }
 
 func main() {
@@ -47,18 +55,43 @@ func main() {
 		err    error
 	)
 
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-
 	args = os.Args
+
+	fmt.Println("Starting oem-alarm v", version)
+	fmt.Println(CompileDate)
 
 	wg = &sync.WaitGroup{}
 
 	if len(args) == 1 {
-		conf = openConfigFile("config2.yaml")
+		conf = openConfigFile(config)
 	} else {
 		conf = openConfigFile(args[1])
 	}
 
+	// log level
+	zerolog.SetGlobalLevel(zerolog.InfoLevel + zerolog.Level(conf.LogLevel))
+	conf.ControllerConfig.LogLevel = conf.LogLevel
+	conf.EventHubConfig.LogLevel = conf.LogLevel
+
+	fmt.Printf("Log level: ")
+	switch zerolog.InfoLevel + zerolog.Level(conf.LogLevel) {
+	case 5:
+		fmt.Println("panic")
+	case 4:
+		fmt.Println("fatal")
+	case 3:
+		fmt.Println("error")
+	case 2:
+		fmt.Println("warning")
+	case 1:
+		fmt.Println("info")
+	case 0:
+		fmt.Println("debug")
+	case -1:
+		fmt.Println("trace")
+	}
+
+	// duration of the service (exit after duration)
 	if conf.Duration > 0 {
 		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(conf.Duration)*time.Minute)
 	} else {

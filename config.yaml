@@ -1,7 +1,12 @@
 ControllerConfig:
-  ConnectionString: "amqps://mxgzljbw:OHbNiq1eBbjKWbEp5s4zxPBV76R_FJmM@chimpanzee.rmq.cloudamqp.com/mxgzljbw"
+  ConnectionString: "amqps://[redacted]]@chimpanzee.rmq.cloudamqp.com/mxgzljbw"
   QueueName: "oem"
-  LogLevel: -1
   MgtUrl: "http://localhost:15672"
-  Port: 8080
+  Port: 8090
 
+EventHubConfig:
+  connection: "Endpoint=sb://oem-alarms.servicebus.windows.net/;SharedAccessKeyName=oem-access;SharedAccessKey=[redacted]"
+  EventHubName: "oem-alarms"
+
+Duration: 3
+LogLevel: 0
