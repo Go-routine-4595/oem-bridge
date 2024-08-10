@@ -33,6 +33,15 @@ type Api struct {
 	logger    zerolog.Logger
 }
 
+type Info struct {
+	CompileDate string `json:"compile_date"`
+	Version     string `json:"version"`
+	LogLevel    string `json:"log_level"`
+	Date        string `json:"date"`
+}
+
+var info Info
+
 // QueueInfo represents the JSON structure returned by RabbitMQ API
 type QueueInfo struct {
 	Messages               int `json:"messages"`
@@ -41,6 +50,10 @@ type QueueInfo struct {
 }
 
 func NewApi(conf controller.ControllerConfig) *Api {
+	info.CompileDate = conf.CompileDate
+	info.Version = conf.Version
+	info.LogLevel = fmt.Sprintf("%d", conf.LogLevel)
+
 	return &Api{
 		MgtUrl:    conf.MgtUrl,
 		QueueName: conf.QueueName,
@@ -85,6 +98,7 @@ func (a *Api) start(ctx context.Context, wg *sync.WaitGroup) {
 	v1 = router.Group("/api/v1")
 	{
 		v1.GET("/metrics", a.Metrics)
+		v1.GET("/info", a.Info)
 	}
 	//router.GET("/swagger/any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -112,6 +126,21 @@ func (a *Api) start(ctx context.Context, wg *sync.WaitGroup) {
 	a.logger.Info().Msg("Shutting down the api")
 	wg.Done()
 
+}
+
+// Info godoc
+// @BasePath 	/api/v1
+// PingExample 	godoc
+// @Summary 	Info
+// @Schemes
+// @Description provides server info
+// @Tags 		example
+// @Produce 	json
+// @Success 	200 	{object}	Info
+// @Router 		/info [get]
+func (a *Api) Info(c *gin.Context) {
+	info.Date = time.Now().UTC().Format(time.RFC3339)
+	c.JSON(http.StatusOK, info)
 }
 
 // Metrics godoc

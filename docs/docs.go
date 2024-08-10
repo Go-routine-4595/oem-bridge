@@ -19,6 +19,26 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/info": {
+            "get": {
+                "description": "provides server info",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "example"
+                ],
+                "summary": "Info",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.Info"
+                        }
+                    }
+                }
+            }
+        },
         "/metrics": {
             "get": {
                 "description": "provides RabbitMQ metrics",
@@ -44,6 +64,23 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.Info": {
+            "type": "object",
+            "properties": {
+                "compile_date": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "log_level": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
         "api.QueueInfo": {
             "type": "object",
             "properties": {

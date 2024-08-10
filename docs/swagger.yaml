@@ -1,5 +1,16 @@
 basePath: /
 definitions:
+  api.Info:
+    properties:
+      compile_date:
+        type: string
+      date:
+        type: string
+      log_level:
+        type: string
+      version:
+        type: string
+    type: object
   api.QueueInfo:
     properties:
       messages:
@@ -19,6 +30,19 @@ info:
   title: Metrics API
   version: "1.0"
 paths:
+  /info:
+    get:
+      description: provides server info
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Info'
+      summary: Info
+      tags:
+      - example
   /metrics:
     get:
       consumes:

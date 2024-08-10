@@ -68,6 +68,10 @@ func main() {
 		conf = openConfigFile(args[1])
 	}
 
+	// provide additional info for the confg/API
+	conf.ControllerConfig.CompileDate = CompileDate
+	conf.ControllerConfig.Version = fmt.Sprintf("%.2f", version)
+
 	// log level
 	zerolog.SetGlobalLevel(zerolog.InfoLevel + zerolog.Level(conf.LogLevel))
 	conf.ControllerConfig.LogLevel = conf.LogLevel

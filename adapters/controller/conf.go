@@ -6,4 +6,6 @@ type ControllerConfig struct {
 	LogLevel         int    `yaml:"LogLevel"`
 	MgtUrl           string `yaml:"MgtUrl"`
 	Port             int    `yaml:"Port"`
+	CompileDate      string
+	Version          string
 }
