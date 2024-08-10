@@ -31,7 +31,7 @@ func NewController(conf controller.ControllerConfig, svc model.IService) *Contro
 		QueueName:        conf.QueueName,
 		Svc:              svc,
 		MgtUrl:           conf.MgtUrl,
-		logger:           zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).Level(zerolog.Level(conf.LogLevel + 1)).With().Timestamp().Logger(),
+		logger:           zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).Level(zerolog.Level(conf.LogLevel+1)).With().Timestamp().Int("pid", os.Getpid()).Logger(),
 		//logger: zerolog.New(os.Stdout).Level(zerolog.Level(zerolog.DebugLevel)).With().Timestamp().Logger(),
 	}
 }
@@ -83,7 +83,7 @@ func (c *Controller) reconnect() {
 			c.logger.Info().Msg("Successfully reconnected to RabbitMQ...")
 			break
 		}
-		c.logger.Error().Err(err).Msg("Reconnect failed")
+		c.logger.Warn().Err(err).Msg("Reconnect failed")
 		time.Sleep(5 * time.Second) // Exponential backoff could be implemented here
 	}
 }
@@ -94,11 +94,11 @@ func (c *Controller) Start(ctx context.Context, wg *sync.WaitGroup) {
 
 	err = c.loadCert()
 	if err != nil {
-		c.logger.Fatal().Err(err).Msg("Failed to load CA certificate")
+		c.logger.Fatal().Err(err).Caller().Msg("Failed to load CA certificate")
 	}
 	err = c.connect()
 	if err != nil {
-		c.logger.Fatal().Err(err).Msg("Failed to connect to RabbitMQ")
+		c.logger.Fatal().Err(err).Caller().Msg("Failed to connect to RabbitMQ")
 	}
 	go c.consume(ctx, wg)
 }
@@ -114,7 +114,7 @@ func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
 	)
 
 	wg.Add(1)
-	c.logger.Info().Msg("Waiting")
+	c.logger.Info().Msg("Waiting event from RabbitMQ")
 
 	for {
 		msgs, err = c.channel.Consume(
@@ -165,16 +165,16 @@ func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
 				}
 
 			case err = <-connClose:
-				c.logger.Error().Err(err).Msg("Connection closed")
+				c.logger.Warn().Err(err).Msg("Connection closed")
 				break loop
 
 			case err = <-chClose:
-				c.logger.Error().Err(err).Msg("Channel closed")
+				c.logger.Warn().Err(err).Msg("Channel closed")
 				break loop
 
 			case <-ctx.Done():
 				c.Close()
-				c.logger.Info().Msg("Received interrupt signal, closing RabbitMQ connection")
+				c.logger.Warn().Msg("Closing RabbitMQ connection")
 				wg.Done()
 				return
 			}
@@ -182,7 +182,7 @@ func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
 
 		// Retry after closing
 		time.Sleep(5 * time.Second)
-		c.logger.Info().Msg("Channel closed, reconnecting...")
+		c.logger.Warn().Msg("Channel closed, reconnecting...")
 		c.reconnect()
 
 	}

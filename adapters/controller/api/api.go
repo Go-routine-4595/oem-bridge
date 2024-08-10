@@ -63,9 +63,10 @@ func NewApi(conf controller.ControllerConfig) *Api {
 			zerolog.ConsoleWriter{
 				Out:        os.Stdout,
 				TimeFormat: time.RFC3339}).
-			Level(zerolog.Level(conf.LogLevel + 1)).
+			Level(zerolog.Level(conf.LogLevel+1)).
 			With().
 			Timestamp().
+			Int("pid", os.Getpid()).
 			Logger(),
 	}
 }
@@ -118,20 +119,20 @@ func (a *Api) start(ctx context.Context, wg *sync.WaitGroup) {
 	go func() {
 		if err = server.ListenAndServe(); err != nil {
 			if errors.Is(http.ErrServerClosed, err) {
-				a.logger.Err(err).Msg("Server closed under request")
+				a.logger.Warn().Err(err).Msg("Server closed under request")
 			} else {
 				a.logger.Err(err).Msg("Server closed unexpect")
 			}
 		}
 	}()
 
-	a.logger.Info().Msg("Waiting")
+	a.logger.Info().Msg("Waiting API server ready")
 	<-ctx.Done()
 	if err = server.Shutdown(context.Background()); err != nil {
 		a.logger.Err(err).Msg("Server close")
 	}
-	a.logger.Info().Msg("Shutting down the api")
-	wg.Done()
+	a.logger.Warn().Msg("Shutting down the api")
+	//wg.Done()
 
 }
 

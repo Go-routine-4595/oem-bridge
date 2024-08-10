@@ -7,8 +7,6 @@ import (
 	"github.com/Go-routine-4595/oem-bridge/adapters/gateway/display"
 	event_hub "github.com/Go-routine-4595/oem-bridge/adapters/gateway/event-hub"
 	"github.com/Go-routine-4595/oem-bridge/middleware"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"os"
 	"os/signal"
 	"sync"
@@ -21,7 +19,8 @@ import (
 	"github.com/Go-routine-4595/oem-bridge/model"
 	"github.com/Go-routine-4595/oem-bridge/service"
 
-	_ "github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -73,6 +72,8 @@ func main() {
 	conf.ControllerConfig.Version = fmt.Sprintf("%.2f", version)
 
 	// log level
+	log.Logger.With().Str("instanceId", "myid").Logger()
+	log.Info().Msg("a message")
 	zerolog.SetGlobalLevel(zerolog.InfoLevel + zerolog.Level(conf.LogLevel))
 	conf.ControllerConfig.LogLevel = conf.LogLevel
 	conf.EventHubConfig.LogLevel = conf.LogLevel
@@ -135,7 +136,8 @@ func main() {
 		<-sig
 		cancel()
 	}()
-
+	// give 500 ms grace period to flush all logs
+	time.Sleep(500 * time.Millisecond)
 	wg.Wait()
 }
 

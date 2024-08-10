@@ -16,7 +16,7 @@ type Logger struct {
 func NewLogger(conf controller.ControllerConfig, svc model.IService) *Logger {
 	return &Logger{
 		svc:    svc,
-		logger: zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).Level(zerolog.Level(conf.LogLevel + 1)).With().Timestamp().Logger(),
+		logger: zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).Level(zerolog.Level(conf.LogLevel+1)).With().Timestamp().Int("pid", os.Getegid()).Logger(),
 		//logger:    zerolog.New(os.Stdout).Level(zerolog.Level(conf.LogLevel + 1)).With().Timestamp().Caller().Logger(),
 	}
 }

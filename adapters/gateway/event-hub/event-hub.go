@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 )
@@ -38,7 +39,7 @@ func NewEventHub(ctx context.Context, wg *sync.WaitGroup, conf EventHubConfig) (
 		cfg            *tls.Config
 		clientOptions  *azeventhubs.ProducerClientOptions
 	)
-	l = zerolog.New(os.Stdout).Level(zerolog.InfoLevel + zerolog.Level(conf.LogLevel)).With().Timestamp().Caller().Logger()
+	l = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).Level(zerolog.InfoLevel+zerolog.Level(conf.LogLevel)).With().Timestamp().Int("pid", os.Getpid()).Logger()
 
 	cfg = &tls.Config{
 		InsecureSkipVerify: true,
@@ -54,12 +55,14 @@ func NewEventHub(ctx context.Context, wg *sync.WaitGroup, conf EventHubConfig) (
 		return nil, errors.Join(err, errors.New("failed to create producer client"))
 	}
 
+	l.Info().Msg("Event Hub handler created")
+
 	go func() {
 		<-ctx.Done()
 		err = producerClient.Close(ctx)
-		l.Info().Msg("Event Hub connection closed")
+		l.Warn().Msg("Event Hub handler deleted")
 		if err != nil {
-			l.Error().Err(err).Msg("failed to close producer client")
+			l.Warn().Err(err).Msg("Event Hub handler failed to delete properly")
 		}
 		wg.Done()
 	}()
