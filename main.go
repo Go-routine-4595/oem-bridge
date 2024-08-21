@@ -118,7 +118,7 @@ func main() {
 
 	// new middleware logger
 	svc = middleware.NewLogger(conf.ControllerConfig, svc)
-	// new controller
+	// new controller with RabbitMQ connection
 	svr = broker.NewController(conf.ControllerConfig, svc)
 
 	// new Api

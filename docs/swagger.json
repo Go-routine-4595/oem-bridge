@@ -13,8 +13,8 @@
         },
         "version": "1.0"
     },
-    "host": "www.zogfestiv.store",
-    "basePath": "/",
+    "host": "localhost:8090",
+    "basePath": "/api/v1/",
     "paths": {
         "/info": {
             "get": {

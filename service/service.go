@@ -20,6 +20,10 @@ func NewService(g ISendAlarm) *Service {
 	}
 }
 
+func (s *Service) TestAlarm(value []byte) error {
+	return nil
+}
+
 func (s *Service) SendAlarm(value []byte) error {
 	var (
 		event model.FCTSDataModel
@@ -34,7 +38,7 @@ func (s *Service) SendAlarm(value []byte) error {
 		Value:      string(value),
 	}
 
-	log.Debug().Str("event", event.Value).Msg("sending alarm")
+	log.Trace().Str("event", event.Value).Msg("sending alarm")
 
 	return s.gateway.SendAlarm(event)
 }

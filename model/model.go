@@ -2,6 +2,7 @@ package model
 
 type IService interface {
 	SendAlarm(events []byte) error
+	TestAlarm(events []byte) error
 }
 
 type FCTSDataModel struct {

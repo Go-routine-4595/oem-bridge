@@ -8,5 +8,5 @@ EventHubConfig:
   connection: "Endpoint=sb://oem-alarms.servicebus.windows.net/;SharedAccessKeyName=oem-access;SharedAccessKey=[redacted]"
   EventHubName: "oem-alarms"
 
-Duration: 3
+Duration: 0
 LogLevel: 0

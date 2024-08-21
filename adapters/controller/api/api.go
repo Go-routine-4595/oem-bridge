@@ -81,8 +81,8 @@ func (a *Api) Start(ctx context.Context, wg *sync.WaitGroup) {
 
 // @license.name Apache 2.0
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
-// @host   www.zogfestiv.store
-// @BasePath  /
+// @host   localhost:8090
+// @BasePath  /api/v1/
 
 // @schemes http
 func (a *Api) start(ctx context.Context, wg *sync.WaitGroup) {
@@ -193,5 +193,5 @@ func (a *Api) Metrics(c *gin.Context) {
 	a.logger.Debug().Int("messages_ready", queueInfo.MessagesReady).Msg("Messages in queue")
 	a.logger.Debug().Int("messages_unacknowledged", queueInfo.MessagesUnacknowledged).Msg("Messages unacknowledged")
 
-	c.JSON(http.StatusOK, resp.Body)
+	c.JSON(http.StatusOK, queueInfo)
 }

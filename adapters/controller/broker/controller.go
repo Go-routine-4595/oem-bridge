@@ -149,6 +149,7 @@ func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
 			case msg := <-msgs:
 				// Process the message here
 				err = c.Svc.SendAlarm(msg.Body)
+				//err = c.Svc.TestAlarm(msg.Body)
 				if err != nil {
 					// failed to send the process message by the service, we don't ack the message, we don't
 					// want to lose the data
@@ -159,7 +160,7 @@ func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
 						// failed to ack the message something bad happen, re-initialize the connection
 						// hopefully the message is not lost and will be processed one connection re-initialized
 						c.logger.Error().Err(err).Msg("Failed to ack message")
-						c.Close()
+						//c.Close()
 						break loop
 					}
 				}
@@ -173,8 +174,8 @@ func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
 				break loop
 
 			case <-ctx.Done():
-				c.Close()
 				c.logger.Warn().Msg("Closing RabbitMQ connection")
+				c.Close()
 				wg.Done()
 				return
 			}
