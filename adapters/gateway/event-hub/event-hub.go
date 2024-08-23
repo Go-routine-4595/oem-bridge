@@ -90,8 +90,15 @@ func (e EventHub) start(ctx context.Context, wg *sync.WaitGroup) {
 		for {
 			select {
 			case <-ctx.Done():
+				switch ctx.Err() {
+				case context.Canceled:
+					e.logger.Warn().Msg("Event Hub handler deleted")
+				case context.DeadlineExceeded:
+					e.logger.Warn().Msg("Event Hub handler deleted Context deadline exceeded")
+				default:
+					e.logger.Warn().Msg("Event Hub handler deleted unknown reason")
+				}
 				err = e.producerClient.Close(ctx)
-				e.logger.Warn().Msg("Event Hub handler deleted")
 				if err != nil {
 					e.logger.Warn().Err(err).Msg("Event Hub handler failed to delete properly")
 				}

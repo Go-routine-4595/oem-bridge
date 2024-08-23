@@ -174,7 +174,14 @@ func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
 				break loop
 
 			case <-ctx.Done():
-				c.logger.Warn().Msg("Closing RabbitMQ connection")
+				switch ctx.Err() {
+				case context.Canceled:
+					c.logger.Warn().Msg("Closing RabbitMQ connection")
+				case context.DeadlineExceeded:
+					c.logger.Warn().Msg("Closing RabbitMQ connection on Context deadline exceeded")
+				default:
+					c.logger.Warn().Msg("Closing RabbitMQ connection unknown reason")
+				}
 				c.Close()
 				wg.Done()
 				return

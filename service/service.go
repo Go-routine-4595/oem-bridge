@@ -39,6 +39,9 @@ func (s *Service) SendAlarm(value []byte) error {
 	}
 
 	log.Trace().Str("event", event.Value).Msg("sending alarm")
+	// just to output the message for documentation purpose
+	// tmp, _ := json.Marshal(event)
+	// fmt.Println(string(tmp))
 
 	return s.gateway.SendAlarm(event)
 }

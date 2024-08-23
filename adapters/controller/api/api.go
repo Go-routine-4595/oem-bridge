@@ -128,11 +128,18 @@ func (a *Api) start(ctx context.Context, wg *sync.WaitGroup) {
 
 	a.logger.Info().Msg("Waiting API server ready")
 	<-ctx.Done()
+	switch ctx.Err() {
+	case context.Canceled:
+		a.logger.Warn().Msg("API server shutting down")
+	case context.DeadlineExceeded:
+		a.logger.Warn().Msg("API server shutting down on Context deadline exceeded")
+	default:
+		a.logger.Warn().Msg("API server shutting down unknown reason")
+	}
 	if err = server.Shutdown(context.Background()); err != nil {
 		a.logger.Err(err).Msg("Server close")
 	}
-	a.logger.Warn().Msg("Shutting down the api")
-	//wg.Done()
+	wg.Done()
 
 }
 
