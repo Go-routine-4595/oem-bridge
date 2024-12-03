@@ -13,6 +13,11 @@ func NewDisplay() *Display {
 	return &Display{}
 }
 
+func (d *Display) SendAlarmRaw(b []byte) error {
+	display(string(b))
+	return nil
+}
+
 func (d *Display) SendAlarm(events model.FCTSDataModel) error {
 	var (
 		buf []byte

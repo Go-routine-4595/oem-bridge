@@ -7,30 +7,34 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Go-routine-4595/oem-bridge/adapters/controller"
 	"github.com/Go-routine-4595/oem-bridge/model"
 
 	"github.com/rs/zerolog"
 	"github.com/streadway/amqp"
 )
 
+type ControllerConfig struct {
+	ConnectionString string `yaml:"ConnectionString"`
+	QueueName        string `yaml:"QueueName"`
+	LogLevel         int    `yaml:"LogLevel"`
+}
+
 type Controller struct {
 	ConnectionString string
 	QueueName        string
 	Svc              model.IService
 	logger           zerolog.Logger
-	MgtUrl           string
 	conn             *amqp.Connection
 	channel          *amqp.Channel
 	cfg              *tls.Config
+	Type             string
 }
 
-func NewController(conf controller.ControllerConfig, svc model.IService) *Controller {
+func NewController(conf ControllerConfig, svc model.IService) *Controller {
 	return &Controller{
 		ConnectionString: conf.ConnectionString,
 		QueueName:        conf.QueueName,
 		Svc:              svc,
-		MgtUrl:           conf.MgtUrl,
 		logger:           zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).Level(zerolog.Level(conf.LogLevel+1)).With().Timestamp().Int("pid", os.Getpid()).Logger(),
 		//logger: zerolog.New(os.Stdout).Level(zerolog.Level(zerolog.DebugLevel)).With().Timestamp().Logger(),
 	}
@@ -48,8 +52,8 @@ func (c *Controller) loadCert() error {
 func (c *Controller) connect() error {
 	var err error
 
-	// c.conn, err = amqp.Dial(c.ConnectionString)
-	c.conn, err = amqp.DialTLS(c.ConnectionString, c.cfg)
+	c.conn, err = amqp.Dial(c.ConnectionString)
+	//c.conn, err = amqp.DialTLS(c.ConnectionString, c.cfg)
 	if err != nil {
 		return err
 	}

@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Go-routine-4595/oem-bridge/adapters/controller"
-
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
@@ -25,6 +23,15 @@ import (
 // https://github.com/swaggo/swag?tab=readme-ov-file#declarative-comments-format
 // command to generate doc after update
 // swag init -g ./adapters/controller/api/api.go -o docs
+
+type ApiConf struct {
+	MgtUrl      string `yaml:"MgtUrl"`
+	Port        int    `yaml:"Port"`
+	CompileDate string
+	Version     string
+	LogLevel    int    `yaml:"LogLevel"`
+	QueueName   string `yaml:"QueueName"`
+}
 
 type Api struct {
 	MgtUrl    string
@@ -49,7 +56,7 @@ type QueueInfo struct {
 	MessagesUnacknowledged int `json:"messages_unacknowledged"`
 }
 
-func NewApi(conf controller.ControllerConfig) *Api {
+func NewApi(conf ApiConf) *Api {
 	info.CompileDate = conf.CompileDate
 	info.Version = conf.Version
 	info.LogLevel = fmt.Sprintf("%d", conf.LogLevel)
@@ -171,7 +178,7 @@ func (a *Api) Info(c *gin.Context) {
 // @Router 		/metrics [get]
 func (a *Api) Metrics(c *gin.Context) {
 	// Replace with your RabbitMQ management API endpoint and credentials
-	url := a.MgtUrl + "/api/queues/%2F/" + a.QueueName
+	url := a.MgtUrl + "api/queues/%2F/" + a.QueueName
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -183,12 +190,15 @@ func (a *Api) Metrics(c *gin.Context) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		a.logger.Fatal().Err(err).Msg("Failed to make request")
+		a.logger.Err(err).Msg("Failed to make request")
+		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		a.logger.Fatal().Err(err).Msg("Unexpected status code")
+		a.logger.Err(err).Msgf("Unexpected status code: %d %s", resp.StatusCode, resp.Status)
+		c.JSON(resp.StatusCode, gin.H{"error": resp.Status})
+		return
 	}
 
 	var queueInfo QueueInfo

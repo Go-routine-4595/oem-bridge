@@ -4,20 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Go-routine-4595/oem-bridge/adapters/gateway/display"
-	event_hub "github.com/Go-routine-4595/oem-bridge/adapters/gateway/event-hub"
-	"github.com/Go-routine-4595/oem-bridge/middleware"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/Go-routine-4595/oem-bridge/adapters/controller"
 	papi "github.com/Go-routine-4595/oem-bridge/adapters/controller/api"
 	"github.com/Go-routine-4595/oem-bridge/adapters/controller/broker"
+	"github.com/Go-routine-4595/oem-bridge/adapters/gateway/display"
+	event_hub "github.com/Go-routine-4595/oem-bridge/adapters/gateway/event-hub"
+	pmqtt "github.com/Go-routine-4595/oem-bridge/adapters/gateway/mqtt"
 	"github.com/Go-routine-4595/oem-bridge/model"
 	"github.com/Go-routine-4595/oem-bridge/service"
+
+	"github.com/Go-routine-4595/oem-bridge/middleware"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -25,17 +26,31 @@ import (
 )
 
 const (
-	config  = "config2.yaml"
+	config  = "/opt/oem-bridge/config.yaml"
 	version = 0.1
 )
 
 var CompileDate string
 
 type Config struct {
-	controller.ControllerConfig `yaml:"ControllerConfig"`
-	event_hub.EventHubConfig    `yaml:"EventHubConfig"`
-	Duration                    int `yaml:"Duration"`
-	LogLevel                    int `yaml:"LogLevel"`
+	broker.ControllerConfig  `yaml:"ControllerConfig"`
+	event_hub.EventHubConfig `yaml:"EventHubConfig"`
+	pmqtt.MqttConf           `yaml:"MqttConfig"`
+	papi.ApiConf             `yaml:"ApiConfig"`
+	Duration                 int    `yaml:"Duration"`
+	LogLevel                 int    `yaml:"LogLevel"`
+	Type                     string `yaml:"Type"`
+}
+
+var logLevel map[int]string = map[int]string{
+	-1: "trace",
+	0:  "debug",
+	1:  "info",
+	2:  "warn",
+	3:  "error",
+	4:  "fatal",
+	5:  "panic",
+	6:  "disabled",
 }
 
 func main() {
@@ -45,6 +60,7 @@ func main() {
 		svc    model.IService
 		gtw    service.ISendAlarm
 		eh     *event_hub.EventHub
+		mqtt   *pmqtt.Mqtt
 		api    *papi.Api
 		wg     *sync.WaitGroup
 		ctx    context.Context
@@ -68,33 +84,17 @@ func main() {
 	}
 
 	// provide additional info for the confg/API
-	conf.ControllerConfig.CompileDate = CompileDate
-	conf.ControllerConfig.Version = fmt.Sprintf("%.2f", version)
+	conf.ApiConf.CompileDate = CompileDate
+	conf.ApiConf.Version = fmt.Sprintf("%.2f", version)
 
 	// log level
 	log.Logger.With().Str("instanceId", "myid").Logger()
 	log.Info().Msg("a message")
 	zerolog.SetGlobalLevel(zerolog.InfoLevel + zerolog.Level(conf.LogLevel))
-	conf.ControllerConfig.LogLevel = conf.LogLevel
+	conf.MqttConf.LogLevel = conf.LogLevel
 	conf.EventHubConfig.LogLevel = conf.LogLevel
 
-	fmt.Printf("Log level: ")
-	switch zerolog.InfoLevel + zerolog.Level(conf.LogLevel) {
-	case 5:
-		fmt.Println("panic")
-	case 4:
-		fmt.Println("fatal")
-	case 3:
-		fmt.Println("error")
-	case 2:
-		fmt.Println("warning")
-	case 1:
-		fmt.Println("info")
-	case 0:
-		fmt.Println("debug")
-	case -1:
-		fmt.Println("trace")
-	}
+	fmt.Printf("Log level: %s \n", logLevel[int(zerolog.InfoLevel+zerolog.Level(conf.LogLevel))])
 
 	// duration of the service (exit after duration)
 	if conf.Duration > 0 {
@@ -107,13 +107,20 @@ func main() {
 	eh, err = event_hub.NewEventHub(ctx, wg, conf.EventHubConfig)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create event hub")
-		// or a Display if we fail to initiate a new event hub
-		gtw = display.NewDisplay()
-		// new service with simple display
-		svc = service.NewService(gtw)
+		mqtt, err = pmqtt.NewMqtt(ctx, wg, conf.MqttConf)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to create mqtt")
+			// or a Display if we fail to initiate a new event hub
+			gtw = display.NewDisplay()
+			// new service with simple display
+			svc = service.NewService(gtw, conf.Type)
+		} else {
+			svc = service.NewService(mqtt, conf.Type)
+		}
+
 	} else {
 		// new service with eh
-		svc = service.NewService(eh)
+		svc = service.NewService(eh, conf.Type)
 	}
 
 	// new middleware logger
@@ -122,7 +129,7 @@ func main() {
 	svr = broker.NewController(conf.ControllerConfig, svc)
 
 	// new Api
-	api = papi.NewApi(conf.ControllerConfig)
+	api = papi.NewApi(conf.ApiConf)
 
 	// start the Api
 	api.Start(ctx, wg)

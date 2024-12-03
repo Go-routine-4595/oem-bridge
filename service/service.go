@@ -6,17 +6,25 @@ import (
 	"time"
 )
 
+const (
+	typeRaw           = "Raw"
+	typeFctsDataModel = "FCTSDataModel"
+)
+
 type ISendAlarm interface {
 	SendAlarm(events model.FCTSDataModel) error
+	SendAlarmRaw(events []byte) error
 }
 
 type Service struct {
 	gateway ISendAlarm
+	Type    string
 }
 
-func NewService(g ISendAlarm) *Service {
+func NewService(g ISendAlarm, t string) *Service {
 	return &Service{
 		gateway: g,
+		Type:    t,
 	}
 }
 
@@ -29,19 +37,28 @@ func (s *Service) SendAlarm(value []byte) error {
 		event model.FCTSDataModel
 	)
 
-	event = model.FCTSDataModel{
-		SiteCode:   "NAMEM",
-		TimeStamp:  time.Now().Unix(),
-		SensorId:   "UAS-OEM-alarms",
-		Uom:        "alarm",
-		DataSource: "Honeywell",
-		Value:      string(value),
+	if s.Type == typeFctsDataModel {
+		event = model.FCTSDataModel{
+			SiteCode:   "NAMEM",
+			TimeStamp:  time.Now().Unix(),
+			SensorId:   "UAS-OEM-alarms",
+			Uom:        "alarm",
+			DataSource: "Honeywell",
+			Value:      string(value),
+		}
+
+		log.Trace().Str("event", event.Value).Msg("sending alarm")
+		// just to output the message for documentation purpose
+		// tmp, _ := json.Marshal(event)
+		// fmt.Println(string(tmp))
+
+		return s.gateway.SendAlarm(event)
 	}
+	if s.Type == typeRaw {
+		log.Trace().Str("event", string(value)).Msg("sending alarm")
+		return s.gateway.SendAlarmRaw(value)
 
-	log.Trace().Str("event", event.Value).Msg("sending alarm")
-	// just to output the message for documentation purpose
-	// tmp, _ := json.Marshal(event)
-	// fmt.Println(string(tmp))
-
-	return s.gateway.SendAlarm(event)
+	}
+	log.Error().Msg("unknown type")
+	return nil
 }

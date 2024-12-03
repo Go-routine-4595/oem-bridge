@@ -223,6 +223,11 @@ func (e EventHub) SendAlarm(events model.FCTSDataModel) error {
 	return nil
 }
 
+func (e EventHub) SendAlarmRaw(b []byte) error {
+	e.logger.Panic().Msg("not available for Event Hub")
+	return nil
+}
+
 func (e EventHub) SendAlarmBak(events model.FCTSDataModel) error {
 	var (
 		mlist []model.FCTSDataModel
