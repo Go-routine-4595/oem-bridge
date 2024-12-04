@@ -22,7 +22,10 @@ import (
 // see https://github.com/Azure/azure-sdk-for-go?tab=readme-ov-file
 
 const (
-	batchSize = 50
+	batchSize          = 50
+	tickerDuration     = 200 * time.Millisecond
+	defaultChannelSize = 100
+	applicationID      = "oem-alarms"
 )
 
 type EventHubConfig struct {
@@ -46,13 +49,13 @@ func NewEventHub(ctx context.Context, wg *sync.WaitGroup, conf EventHubConfig) (
 		clientOptions  *azeventhubs.ProducerClientOptions
 		eh             *EventHub
 	)
-	l = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).Level(zerolog.InfoLevel+zerolog.Level(conf.LogLevel)).With().Timestamp().Int("pid", os.Getpid()).Logger()
+	l = initializeLogger(conf.LogLevel)
 
 	cfg = &tls.Config{
 		InsecureSkipVerify: true,
 	}
 	clientOptions = &azeventhubs.ProducerClientOptions{
-		ApplicationID: "oem-alarms",
+		ApplicationID: applicationID,
 		TLSConfig:     cfg,
 	}
 
@@ -66,7 +69,7 @@ func NewEventHub(ctx context.Context, wg *sync.WaitGroup, conf EventHubConfig) (
 
 	eh = &EventHub{
 		producerClient: producerClient,
-		ChanM:          make(chan model.FCTSDataModel, 100),
+		ChanM:          make(chan model.FCTSDataModel, defaultChannelSize),
 		logger:         l,
 	}
 
@@ -75,59 +78,42 @@ func NewEventHub(ctx context.Context, wg *sync.WaitGroup, conf EventHubConfig) (
 	return eh, nil
 }
 
-func (e EventHub) start(ctx context.Context, wg *sync.WaitGroup) {
+func initializeLogger(logLevel int) zerolog.Logger {
+	return zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).
+		Level(zerolog.InfoLevel+zerolog.Level(logLevel)).
+		With().Timestamp().Int("pid", os.Getpid()).Logger()
+}
+
+func (e *EventHub) start(ctx context.Context, wg *sync.WaitGroup) {
 	var (
 		ticker *time.Ticker
 		msg    model.FCTSDataModel
 		mlist  []model.FCTSDataModel
-		err    error
 	)
 
-	go func() {
-		wg.Add(1)
-		ticker = time.NewTicker(200 * time.Millisecond)
+	wg.Add(1)
+	ticker = time.NewTicker(tickerDuration)
+	defer wg.Done()
+	defer ticker.Stop()
 
+	go func() {
+		mlist = make([]model.FCTSDataModel, 0, batchSize)
 		for {
 			select {
 			case <-ctx.Done():
-				switch ctx.Err() {
-				case context.Canceled:
-					e.logger.Warn().Msg("Event Hub handler deleted")
-				case context.DeadlineExceeded:
-					e.logger.Warn().Msg("Event Hub handler deleted Context deadline exceeded")
-				default:
-					e.logger.Warn().Msg("Event Hub handler deleted unknown reason")
-				}
-				err = e.producerClient.Close(ctx)
-				if err != nil {
-					e.logger.Warn().Err(err).Msg("Event Hub handler failed to delete properly")
-				}
-				wg.Done()
+				e.handleContextDone(ctx)
 				return
 			case <-ticker.C:
 				ticker.Stop()
 				// flush and send message every 200 millisecond don't wait the buffer to be full
 				if len(mlist) > 0 {
-					e.logger.Debug().Int("count", len(mlist)).Msg("Event Hub handler ticked")
-					// send the batch
-					err = e.SendAlarmBatch(mlist)
-					if err != nil {
-						e.logger.Error().Err(err).Int("msize", len(mlist)).Msg("Event Hub handler failed to send alarms")
-					}
-					// flush the buffer
-					mlist = mlist[:0]
+					e.flushMessages(&mlist)
 				}
-				ticker = time.NewTicker(200 * time.Millisecond)
+				ticker.Reset(tickerDuration)
 			case msg = <-e.ChanM:
 				mlist = append(mlist, msg)
 				if len(mlist) >= batchSize {
-					// send the batch
-					err = e.SendAlarmBatch(mlist)
-					if err != nil {
-						e.logger.Error().Err(err).Int("msize", len(mlist)).Msg("Event Hub handler failed to send alarms")
-					}
-					// flush the buffer
-					mlist = mlist[:0]
+					e.flushMessages(&mlist)
 				}
 
 			}
@@ -135,7 +121,29 @@ func (e EventHub) start(ctx context.Context, wg *sync.WaitGroup) {
 	}()
 }
 
-func (e EventHub) SendAlarmBatch(events []model.FCTSDataModel) error {
+func (e *EventHub) flushMessages(mlist *[]model.FCTSDataModel) {
+	if len(*mlist) > 0 {
+		e.logger.Debug().Int("count", len(*mlist)).Msg("Sending batch of messages")
+		if err := e.SendAlarmBatch(*mlist); err != nil {
+			e.logger.Error().Err(err).Int("msize", len(*mlist)).Msg("Failed to send alarms")
+		}
+		*mlist = (*mlist)[:0]
+	}
+}
+
+func (e *EventHub) handleContextDone(ctx context.Context) {
+	msg := "Event Hub handler deleted"
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		msg = "Event Hub handler deleted: context deadline exceeded"
+	}
+	e.logger.Warn().Msg(msg)
+
+	if err := e.producerClient.Close(ctx); err != nil {
+		e.logger.Warn().Err(err).Msg("Event Hub handler failed to close properly")
+	}
+}
+
+func (e *EventHub) SendAlarmBatch(events []model.FCTSDataModel) error {
 	var (
 		buf             []byte
 		err             error
@@ -217,18 +225,18 @@ func (e EventHub) SendAlarmBatch(events []model.FCTSDataModel) error {
 	return nil
 }
 
-func (e EventHub) SendAlarm(events model.FCTSDataModel) error {
+func (e *EventHub) SendAlarm(events model.FCTSDataModel) error {
 	e.ChanM <- events
 	e.logger.Trace().Int("chan", len(e.ChanM)).Msg("Event Hub handler channel status")
 	return nil
 }
 
-func (e EventHub) SendAlarmRaw(b []byte) error {
+func (e *EventHub) SendAlarmRaw(b []byte) error {
 	e.logger.Panic().Msg("not available for Event Hub")
 	return nil
 }
 
-func (e EventHub) SendAlarmBak(events model.FCTSDataModel) error {
+func (e *EventHub) SendAlarmBak(events model.FCTSDataModel) error {
 	var (
 		mlist []model.FCTSDataModel
 	)
@@ -236,7 +244,7 @@ func (e EventHub) SendAlarmBak(events model.FCTSDataModel) error {
 	return e.SendAlarmBatch(mlist)
 }
 
-func (e EventHub) oldSendAlarm(events model.FCTSDataModel) error {
+func (e *EventHub) oldSendAlarm(events model.FCTSDataModel) error {
 	var (
 		buf             []byte
 		err             error

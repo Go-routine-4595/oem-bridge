@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	config  = "config.yaml"
+	config  = "/opt/oem-bridge/config.yaml"
 	version = 0.25
 )
 
@@ -78,8 +78,10 @@ func main() {
 	wg = &sync.WaitGroup{}
 
 	if len(args) == 1 {
+		fmt.Println("reading configuraiotn file: ", config)
 		conf = openConfigFile(config)
 	} else {
+		fmt.Println("reading configuraiotn file: ", args[1])
 		conf = openConfigFile(args[1])
 	}
 

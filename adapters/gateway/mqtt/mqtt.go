@@ -42,7 +42,7 @@ func NewMqtt(ctx context.Context, wg *sync.WaitGroup, conf MqttConf) (*Mqtt, err
 
 	wg.Add(1)
 
-	l = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).Level(zerolog.InfoLevel+zerolog.Level(conf.LogLevel)).With().Timestamp().Int("pid", os.Getpid()).Logger()
+	l = initializeLogger(conf.LogLevel)
 	cid = uuid.NewV4()
 	c := &Mqtt{
 		Topic:    conf.Topic,
@@ -75,6 +75,12 @@ func NewMqtt(ctx context.Context, wg *sync.WaitGroup, conf MqttConf) (*Mqtt, err
 	err = c.Connect()
 
 	return c, err
+}
+
+func initializeLogger(logLevel int) zerolog.Logger {
+	return zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).
+		Level(zerolog.InfoLevel+zerolog.Level(logLevel)).
+		With().Timestamp().Int("pid", os.Getpid()).Logger()
 }
 
 // SendAlarmRaw publishes a byte slice `b` to the configured MQTT topic as a QoS 1 message.
