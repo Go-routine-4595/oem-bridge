@@ -87,7 +87,7 @@ func NewApi(conf ApiConf) *Api {
 			Out:        os.Stdout,
 			TimeFormat: time.RFC3339,
 		}).
-		Level(zerolog.Level(conf.LogLevel+1)).
+		Level(zerolog.Level(conf.LogLevel)+zerolog.InfoLevel).
 		With().
 		Timestamp().
 		Int("pid", os.Getpid()).

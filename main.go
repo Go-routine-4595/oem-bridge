@@ -27,7 +27,7 @@ import (
 
 const (
 	config  = "/opt/oem-bridge/config.yaml"
-	version = 0.25
+	version = 0.27
 )
 
 var CompileDate string
@@ -95,6 +95,7 @@ func main() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel + zerolog.Level(conf.LogLevel))
 	conf.MqttConf.LogLevel = conf.LogLevel
 	conf.EventHubConfig.LogLevel = conf.LogLevel
+	conf.ControllerConfig.LogLevel = conf.LogLevel
 
 	fmt.Printf("Log level: %s \n", logLevel[int(zerolog.InfoLevel+zerolog.Level(conf.LogLevel))])
 

@@ -77,7 +77,7 @@ func NewController(conf ControllerConfig, svc model.IService) *Controller {
 // It sets the output to `os.Stdout` with RFC3339 time format and includes the process PID in the log context.
 func initializeLogger(logLevel int) zerolog.Logger {
 	return zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).
-		Level(zerolog.Level(logLevel+1)).
+		Level(zerolog.Level(logLevel)+zerolog.InfoLevel).
 		With().
 		Timestamp().
 		Int("pid", os.Getpid()).
