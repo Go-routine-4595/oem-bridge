@@ -8,7 +8,9 @@ import (
 )
 
 func showCertificatePool(certPool *x509.CertPool, logger zerolog.Logger) {
-	logger.Debug().Msgf("Certificates in pool: %d\n", certPool.Subjects())
+	for certificates := range certPool.Subjects() {
+		logger.Debug().Msgf("Certificates in pool: %d\n", string(certificates))
+	}
 }
 
 func showCertificate(certFile string, logger zerolog.Logger) {
@@ -22,13 +24,13 @@ func showCertificate(certFile string, logger zerolog.Logger) {
 
 	b, err := os.ReadFile(certFile)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to read certificate")
+		logger.Error().Err(err).Msgf("Failed to read certificate: %s \n", certFile)
 		return
 	}
 
 	certs, err := x509.ParseCertificates(b)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to parse certificate")
+		logger.Error().Err(err).Msgf("Failed to parse certificate: %s \n", certFile)
 		return
 	}
 

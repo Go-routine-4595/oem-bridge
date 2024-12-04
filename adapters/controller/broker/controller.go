@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	uuid "github.com/satori/go.uuid"
 	"os"
 	"sync"
 	"time"
@@ -131,14 +132,16 @@ func (c *Controller) connect() error {
 	if err != nil {
 		return err
 	}
-	_, err = c.channel.QueueDeclare(
-		c.QueueName,
-		true,  // durable
-		false, // autoDelete
-		false, // exclusive
-		false, // noWait
-		nil,   // args
-	)
+	/*
+		_, err = c.channel.QueueDeclare(
+			c.QueueName,
+			true,  // durable
+			false, // autoDelete
+			false, // exclusive
+			false, // noWait
+			nil,   // args
+		)
+	*/
 	return err
 }
 
@@ -190,12 +193,12 @@ func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
 	for {
 		msgs, err = c.channel.Consume(
 			c.QueueName,
-			"oem-bridge", // consumer
-			false,        // auto-ack
-			false,        // exclusive
-			false,        // no-local
-			false,        // no-wait
-			nil,          // args
+			"oem-bridge-"+uuid.NewV4().String(), // consumer
+			false,                               // auto-ack
+			false,                               // exclusive
+			false,                               // no-local
+			false,                               // no-wait
+			nil,                                 // args
 		)
 		if err != nil {
 			c.logger.Error().Err(err).Msg("Failed to register a consumer")
