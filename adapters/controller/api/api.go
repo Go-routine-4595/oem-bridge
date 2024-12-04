@@ -116,9 +116,11 @@ func (a *Api) Start(ctx context.Context, wg *sync.WaitGroup) {
 	go a.runServer(server)
 
 	a.logger.Info().Msg("Waiting API server ready")
-	<-ctx.Done()
+	go func() {
+		<-ctx.Done()
+		a.shutdownServer(server, ctx)
+	}()
 
-	a.shutdownServer(server, ctx)
 }
 
 func (a *Api) setupRouter() *gin.Engine {
