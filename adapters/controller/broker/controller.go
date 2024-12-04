@@ -55,9 +55,11 @@ func NewController(conf ControllerConfig, svc model.IService) *Controller {
 	}
 	if btls {
 		logger.Debug().Msg("Checking certificates pool")
-		listCertificates(tlsConfig.RootCAs, logger)
+		showCertificatePool(tlsConfig.RootCAs, logger)
 		logger.Debug().Msg("Checking certificates client")
-		listCertificates(tlsConfig.ClientCAs, logger)
+		showCertificate(conf.Cert, logger)
+		logger.Debug().Msg("Checking certificates CA bundle")
+		showCertificate(conf.CABundle, logger)
 	}
 
 	return &Controller{

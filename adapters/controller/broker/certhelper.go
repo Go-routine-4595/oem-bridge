@@ -3,8 +3,51 @@ package broker
 import (
 	"crypto/x509"
 	"github.com/rs/zerolog"
+	"os"
 	"reflect"
 )
+
+func showCertificatePool(certPool *x509.CertPool, logger zerolog.Logger) {
+	logger.Debug().Msgf("Certificates in pool: %d\n", certPool.Subjects())
+}
+
+func showCertificate(certFile string, logger zerolog.Logger) {
+	f, err := os.Open(certFile)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to open certificate")
+		return
+	}
+
+	defer f.Close()
+
+	b, err := os.ReadFile(certFile)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to read certificate")
+		return
+	}
+
+	certs, err := x509.ParseCertificates(b)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to parse certificate")
+		return
+	}
+
+	for _, cert := range certs {
+		showCertificateDetail(cert, logger)
+	}
+}
+
+func showCertificateDetail(cert *x509.Certificate, logger zerolog.Logger) {
+	logger.Debug().Msgf("Subject: %s\n", cert.Subject)
+	logger.Debug().Msgf("Issuer: %s\n", cert.Issuer)
+	logger.Debug().Msgf("Not Before: %s\n", cert.NotBefore)
+	logger.Debug().Msgf("Not After: %s\n", cert.NotAfter)
+	logger.Debug().Msgf("Key Usage: %s\n", cert.KeyUsage)
+	logger.Debug().Msgf("Ext Key Usage: %s\n", cert.ExtKeyUsage)
+	logger.Debug().Msgf("Basic Constraints Valid: %t\n", cert.IsCA)
+	logger.Debug().Msgf("DNS Names: %s\n", cert.DNSNames)
+	logger.Debug().Msgf("IP Addresses: %s\n", cert.IPAddresses)
+}
 
 func listCertificates(certPool *x509.CertPool, logger zerolog.Logger) {
 	poolValue := reflect.ValueOf(certPool).Elem()
