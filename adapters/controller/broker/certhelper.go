@@ -8,7 +8,7 @@ import (
 )
 
 func showCertificatePool(certPool *x509.CertPool, logger zerolog.Logger) {
-	for certificates := range certPool.Subjects() {
+	for _, certificates := range certPool.Subjects() {
 		logger.Debug().Msgf("Certificates in pool: %d\n", string(certificates))
 	}
 }
