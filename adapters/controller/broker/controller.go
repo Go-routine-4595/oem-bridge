@@ -121,8 +121,10 @@ func loadCert(conf ControllerConfig) (*tls.Config, error) {
 func (c *Controller) connect() error {
 	var err error
 	if c.dialtls {
+		c.logger.Debug().Msg("Dialing TLS")
 		c.conn, err = amqp.DialTLS(c.ConnectionString, c.cfgTls)
 	} else {
+		c.logger.Debug().Msg("Dialing")
 		c.conn, err = amqp.Dial(c.ConnectionString)
 	}
 	if err != nil {
