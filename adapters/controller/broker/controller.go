@@ -34,6 +34,7 @@ type Controller struct {
 	channel          *amqp.Channel
 	cfgTls           *tls.Config
 	controllerType   string
+	dialtls          bool
 }
 
 const reconnectInterval = 5 * time.Second
@@ -43,12 +44,20 @@ const reconnectInterval = 5 * time.Second
 func NewController(conf ControllerConfig, svc model.IService) *Controller {
 	logger := initializeLogger(conf.LogLevel)
 
+	btls := true
 	tlsConfig, err := loadCert(conf)
 	if err != nil {
 		tlsConfig = &tls.Config{
 			InsecureSkipVerify: true,
 		}
+		btls = false
 		logger.Error().Err(err).Msg("Failed to load CA certificate; using insecure skip verify")
+	}
+	if btls {
+		logger.Debug().Msg("Checking certificates pool")
+		listCertificates(tlsConfig.RootCAs, logger)
+		logger.Debug().Msg("Checking certificates client")
+		listCertificates(tlsConfig.ClientCAs, logger)
 	}
 
 	return &Controller{
@@ -57,6 +66,7 @@ func NewController(conf ControllerConfig, svc model.IService) *Controller {
 		Svc:              svc,
 		cfgTls:           tlsConfig,
 		logger:           logger,
+		dialtls:          btls,
 	}
 }
 
@@ -107,7 +117,11 @@ func loadCert(conf ControllerConfig) (*tls.Config, error) {
 // Returns an error if the connection, channel initialization, or queue declaration fails.
 func (c *Controller) connect() error {
 	var err error
-	c.conn, err = amqp.Dial(c.ConnectionString)
+	if c.dialtls {
+		c.conn, err = amqp.DialTLS(c.ConnectionString, c.cfgTls)
+	} else {
+		c.conn, err = amqp.Dial(c.ConnectionString)
+	}
 	if err != nil {
 		return err
 	}
