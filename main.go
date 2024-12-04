@@ -27,7 +27,7 @@ import (
 
 const (
 	config  = "config.yaml"
-	version = 0.2
+	version = 0.25
 )
 
 var CompileDate string
