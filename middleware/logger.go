@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/Go-routine-4595/oem-bridge/adapters/controller"
+	"github.com/Go-routine-4595/oem-bridge/adapters/controller/broker"
 	"github.com/Go-routine-4595/oem-bridge/model"
 	"github.com/rs/zerolog"
 	"os"
@@ -13,7 +13,7 @@ type Logger struct {
 	logger zerolog.Logger
 }
 
-func NewLogger(conf controller.ControllerConfig, svc model.IService) *Logger {
+func NewLogger(conf broker.ControllerConfig, svc model.IService) *Logger {
 	return &Logger{
 		svc:    svc,
 		logger: zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).Level(zerolog.Level(conf.LogLevel+1)).With().Timestamp().Int("pid", os.Getpid()).Logger(),

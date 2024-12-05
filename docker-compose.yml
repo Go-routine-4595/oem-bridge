@@ -2,7 +2,9 @@ version: '1'
 services:
   oem-bridge:
     build: .
-    image: oem-bridge:0.2
+    image: oem-bridge:3a4a7591988
+    volumes:
+      - /opt/oem-bridge:/opt/oem-bridge
     ports:
       - 8090:8090
     networks:

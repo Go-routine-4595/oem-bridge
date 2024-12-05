@@ -3,78 +3,152 @@ package broker
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"fmt"
+	uuid "github.com/satori/go.uuid"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/Go-routine-4595/oem-bridge/adapters/controller"
 	"github.com/Go-routine-4595/oem-bridge/model"
-
 	"github.com/rs/zerolog"
 	"github.com/streadway/amqp"
 )
+
+type ControllerConfig struct {
+	ConnectionString   string `yaml:"ConnectionString"`
+	QueueName          string `yaml:"QueueName"`
+	LogLevel           int    `yaml:"LogLevel"`
+	Key                string `yaml:"Key"`
+	CABundle           string `yaml:"CABundle"`
+	Cert               string `yaml:"Cert"`
+	InsecureSkipVerify bool   `yaml:"InsecureSkipVerify"`
+}
 
 type Controller struct {
 	ConnectionString string
 	QueueName        string
 	Svc              model.IService
 	logger           zerolog.Logger
-	MgtUrl           string
 	conn             *amqp.Connection
 	channel          *amqp.Channel
-	cfg              *tls.Config
+	cfgTls           *tls.Config
+	controllerType   string
+	dialtls          bool
 }
 
-func NewController(conf controller.ControllerConfig, svc model.IService) *Controller {
+const reconnectInterval = 5 * time.Second
+
+// NewController initializes and returns a new Controller instance with the specified configuration and service.
+// It sets up a logger, loads TLS certificates, and handles errors with insecure skip verify as fallback.
+func NewController(conf ControllerConfig, svc model.IService) *Controller {
+	logger := initializeLogger(conf.LogLevel)
+
+	btls := true
+	tlsConfig, err := loadCert(conf)
+	if err != nil {
+		tlsConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		btls = false
+		logger.Error().Err(err).Msg("Failed to load CA certificate; using insecure skip verify")
+	}
+	if btls {
+		logger.Debug().Msg("Checking certificates pool")
+		showCertificatePool(tlsConfig.RootCAs, logger)
+		logger.Debug().Msg("Checking certificates client")
+		showCertificate(conf.Cert, logger)
+		logger.Debug().Msg("Checking certificates CA bundle")
+		showCertificate(conf.CABundle, logger)
+	}
+
 	return &Controller{
 		ConnectionString: conf.ConnectionString,
 		QueueName:        conf.QueueName,
 		Svc:              svc,
-		MgtUrl:           conf.MgtUrl,
-		logger:           zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).Level(zerolog.Level(conf.LogLevel+1)).With().Timestamp().Int("pid", os.Getpid()).Logger(),
-		//logger: zerolog.New(os.Stdout).Level(zerolog.Level(zerolog.DebugLevel)).With().Timestamp().Logger(),
+		cfgTls:           tlsConfig,
+		logger:           logger,
+		dialtls:          btls,
 	}
 }
 
-// loadCert load CA certificate to connect to AMQP server with authentication
-func (c *Controller) loadCert() error {
-	c.cfg = &tls.Config{
+// createLogger initializes and returns a new `zerolog.Logger` configured with the given log level.
+// It sets the output to `os.Stdout` with RFC3339 time format and includes the process PID in the log context.
+func initializeLogger(logLevel int) zerolog.Logger {
+	return zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).
+		Level(zerolog.Level(logLevel)+zerolog.InfoLevel).
+		With().
+		Timestamp().
+		Int("pid", os.Getpid()).
+		Logger()
+}
+
+// loadCert loads and returns a configured tls.Config using the provided ControllerConfig for TLS settings.
+// It reads the CA bundle, certificate, and key files specified in the config. If any file is missing, it returns an error.
+// The function also handles loading X.509 key pairs and appending CA certificates to a new certificate pool.
+// Note: InsecureSkipVerify is set to true regardless of the config setting.
+func loadCert(conf ControllerConfig) (*tls.Config, error) {
+	if conf.Key == "" || conf.Cert == "" || conf.CABundle == "" {
+		return nil, fmt.Errorf("missing key, cert or ca bundle")
+	}
+
+	cert, err := tls.LoadX509KeyPair(conf.Cert, conf.Key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load key pair: %v", err)
+	}
+
+	caCert, err := os.ReadFile(conf.CABundle)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CA bundle: %v", err)
+	}
+
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to append CA certificates")
+	}
+
+	return &tls.Config{
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            caCertPool,
 		InsecureSkipVerify: true,
-	}
-	return nil
+	}, nil
 }
 
-// connect establishes a new connection and channel
+// connect establishes a connection to a RabbitMQ server using the Controller's connection string and queue name.
+// It initializes a new AMQP connection and channel, and declares a durable queue.
+// Returns an error if the connection, channel initialization, or queue declaration fails.
 func (c *Controller) connect() error {
 	var err error
-
-	// c.conn, err = amqp.Dial(c.ConnectionString)
-	c.conn, err = amqp.DialTLS(c.ConnectionString, c.cfg)
+	if c.dialtls {
+		c.logger.Debug().Msg("Dialing TLS")
+		c.conn, err = amqp.DialTLS(c.ConnectionString, c.cfgTls)
+	} else {
+		c.logger.Debug().Msg("Dialing")
+		c.conn, err = amqp.Dial(c.ConnectionString)
+	}
 	if err != nil {
 		return err
 	}
-
 	c.channel, err = c.conn.Channel()
 	if err != nil {
 		return err
 	}
-
-	_, err = c.channel.QueueDeclare(
-		c.QueueName,
-		true,  // durable
-		false, // autoDelete
-		false, // exclusive
-		false, // noWait
-		nil,   // args
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	/*
+		_, err = c.channel.QueueDeclare(
+			c.QueueName,
+			true,  // durable
+			false, // autoDelete
+			false, // exclusive
+			false, // noWait
+			nil,   // args
+		)
+	*/
+	return err
 }
 
-// reconnect handles reconnection logic
+// reconnect continuously attempts to re-establish a RabbitMQ connection until successful.
+// It logs the status of each connection attempt and waits for a predefined interval before retrying.
 func (c *Controller) reconnect() {
 	for {
 		c.logger.Info().Msg("Attempting to reconnect to RabbitMQ...")
@@ -84,28 +158,28 @@ func (c *Controller) reconnect() {
 			break
 		}
 		c.logger.Warn().Err(err).Msg("Reconnect failed")
-		time.Sleep(5 * time.Second) // Exponential backoff could be implemented here
+		time.Sleep(reconnectInterval)
 	}
 }
 
-// Start the controller
+// Start begins the controller's operation by establishing a connection to RabbitMQ and starting message consumption.
+// It runs the consume function in a separate goroutine, allowing it to process messages asynchronously.
+// The method completes by signaling the associated WaitGroup when the operation is done or if a connection error occurs.
 func (c *Controller) Start(ctx context.Context, wg *sync.WaitGroup) {
-	var err error
+	defer wg.Done()
 
-	err = c.loadCert()
-	if err != nil {
-		c.logger.Fatal().Err(err).Caller().Msg("Failed to load CA certificate")
-	}
-	err = c.connect()
+	err := c.connect()
 	if err != nil {
 		c.logger.Fatal().Err(err).Caller().Msg("Failed to connect to RabbitMQ")
+		return
 	}
 	go c.consume(ctx, wg)
 }
 
-// consume starts the consumption of messages
+// consume handles incoming messages from a RabbitMQ queue and processes them using the provided context and wait group.
+// It continuously listens for messages, processes each message through the Svc.SendAlarm method, and acknowledges messages if successful.
+// The method will attempt to reconnect if the connection or channel is closed, or if an error occurs during message consumption.
 func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
-
 	var (
 		connClose chan *amqp.Error
 		chClose   chan *amqp.Error
@@ -114,17 +188,19 @@ func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
 	)
 
 	wg.Add(1)
-	c.logger.Info().Msg("Waiting event from RabbitMQ")
+	defer wg.Done()
+
+	c.logger.Info().Msg("Waiting for events from RabbitMQ")
 
 	for {
 		msgs, err = c.channel.Consume(
 			c.QueueName,
-			"oem-bridge", // consumer
-			false,        // auto-ack
-			false,        // exclusive
-			false,        // no-local
-			false,        // no-wait
-			nil,          // args
+			"oem-bridge-"+uuid.NewV4().String(), // consumer
+			false,                               // auto-ack
+			false,                               // exclusive
+			false,                               // no-local
+			false,                               // no-wait
+			nil,                                 // args
 		)
 		if err != nil {
 			c.logger.Error().Err(err).Msg("Failed to register a consumer")
@@ -132,85 +208,58 @@ func (c *Controller) consume(ctx context.Context, wg *sync.WaitGroup) {
 			continue
 		}
 
-		// Create channels for detecting connection and channel closures
 		connClose = make(chan *amqp.Error)
 		chClose = make(chan *amqp.Error)
-
 		c.conn.NotifyClose(connClose)
 		c.channel.NotifyClose(chClose)
-
-		// Listen for messages and processing:
-		// - disconnection detection
-		// - termination detection
 
 	loop:
 		for {
 			select {
 			case msg := <-msgs:
-				// Process the message here
 				err = c.Svc.SendAlarm(msg.Body)
-				//err = c.Svc.TestAlarm(msg.Body)
 				if err != nil {
-					// failed to send the process message by the service, we don't ack the message, we don't
-					// want to lose the data
 					c.logger.Error().Err(err).Msg("Failed to send alarm")
 				} else {
 					err = msg.Ack(false)
 					if err != nil {
-						// failed to ack the message something bad happen, re-initialize the connection
-						// hopefully the message is not lost and will be processed one connection re-initialized
 						c.logger.Error().Err(err).Msg("Failed to ack message")
-						//c.Close()
 						break loop
 					}
 				}
-
 			case err = <-connClose:
 				c.logger.Warn().Err(err).Msg("Connection closed")
 				break loop
-
 			case err = <-chClose:
 				c.logger.Warn().Err(err).Msg("Channel closed")
 				break loop
-
 			case <-ctx.Done():
-				switch ctx.Err() {
-				case context.Canceled:
+				if errors.Is(ctx.Err(), context.Canceled) {
 					c.logger.Warn().Msg("Closing RabbitMQ connection")
-				case context.DeadlineExceeded:
-					c.logger.Warn().Msg("Closing RabbitMQ connection on Context deadline exceeded")
-				default:
-					c.logger.Warn().Msg("Closing RabbitMQ connection unknown reason")
+				} else {
+					c.logger.Warn().Msg("Context deadline exceeded, closing RabbitMQ connection")
 				}
 				c.Close()
-				wg.Done()
 				return
 			}
 		}
 
-		// Retry after closing
-		time.Sleep(5 * time.Second)
+		time.Sleep(reconnectInterval)
 		c.logger.Warn().Msg("Channel closed, reconnecting...")
 		c.reconnect()
-
 	}
-
 }
 
-// Close gracefully shuts down the connection and channel
 func (c *Controller) Close() error {
-
 	err := c.channel.Close()
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to close channel")
-		return err
 	}
 
 	err = c.conn.Close()
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to close connection")
-		return err
 	}
 
-	return nil
+	return err
 }
