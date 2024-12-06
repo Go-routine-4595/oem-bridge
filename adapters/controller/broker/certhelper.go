@@ -2,6 +2,7 @@ package broker
 
 import (
 	"crypto/x509"
+	"encoding/pem"
 	"github.com/rs/zerolog"
 	"os"
 	"reflect"
@@ -9,7 +10,7 @@ import (
 
 func showCertificatePool(certPool *x509.CertPool, logger zerolog.Logger) {
 	for _, certificate := range certPool.Subjects() {
-		logger.Debug().Int("size", len(certificate)).Msgf("Certificates in pool: %d\n", string(certificate))
+		logger.Debug().Int("size", len(certificate)).Msgf("Certificates in pool: %s\n", string(certificate))
 	}
 }
 
@@ -28,7 +29,14 @@ func showCertificate(certFile string, logger zerolog.Logger) {
 		return
 	}
 
-	certs, err := x509.ParseCertificates(b)
+	// Decode the PEM block
+	block, _ := pem.Decode(b)
+	if block == nil || block.Type != "CERTIFICATE" {
+		logger.Error().Msgf("Failed to decode PEM block containing the certificate: %s \n", certFile)
+		return
+	}
+
+	certs, err := x509.ParseCertificates(block.Bytes)
 	if err != nil {
 		logger.Error().Err(err).Msgf("Failed to parse certificate: %s \n", certFile)
 		return

@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"github.com/Go-routine-4595/oem-bridge/cert"
 	uuid "github.com/satori/go.uuid"
 	"os"
 	"sync"
@@ -46,7 +47,7 @@ func NewController(conf ControllerConfig, svc model.IService) *Controller {
 	logger := initializeLogger(conf.LogLevel)
 
 	btls := true
-	tlsConfig, err := loadCert(conf)
+	tlsConfig, err := cert.LoadCert(conf.Key, conf.Cert, conf.CABundle)
 	if err != nil {
 		tlsConfig = &tls.Config{
 			InsecureSkipVerify: true,
@@ -56,11 +57,13 @@ func NewController(conf ControllerConfig, svc model.IService) *Controller {
 	}
 	if btls {
 		logger.Debug().Msg("Checking certificates pool")
-		showCertificatePool(tlsConfig.RootCAs, logger)
+		cert.ShowCertificatePool(tlsConfig.RootCAs, logger)
 		logger.Debug().Msg("Checking certificates client")
-		showCertificate(conf.Cert, logger)
+		cert.ShowCertificate(conf.Cert, logger)
 		logger.Debug().Msg("Checking certificates CA bundle")
-		showCertificate(conf.CABundle, logger)
+		cert.ShowCertificate(conf.CABundle, logger)
+		logger.Debug().Msg("Checking certificates Pool from file")
+		cert.ShowCertificatePoolFromFile(conf.CABundle, logger)
 	}
 
 	return &Controller{
@@ -93,7 +96,7 @@ func loadCert(conf ControllerConfig) (*tls.Config, error) {
 		return nil, fmt.Errorf("missing key, cert or ca bundle")
 	}
 
-	cert, err := tls.LoadX509KeyPair(conf.Cert, conf.Key)
+	certlClient, err := tls.LoadX509KeyPair(conf.Cert, conf.Key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load key pair: %v", err)
 	}
@@ -109,7 +112,7 @@ func loadCert(conf ControllerConfig) (*tls.Config, error) {
 	}
 
 	return &tls.Config{
-		Certificates:       []tls.Certificate{cert},
+		Certificates:       []tls.Certificate{certlClient},
 		RootCAs:            caCertPool,
 		InsecureSkipVerify: true,
 	}, nil

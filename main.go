@@ -35,7 +35,7 @@ var CompileDate string
 type Config struct {
 	broker.ControllerConfig  `yaml:"ControllerConfig"`
 	event_hub.EventHubConfig `yaml:"EventHubConfig"`
-	pmqtt.MqttConf           `yaml:"MqttConfig"`
+	pmqtt.MqttConfig         `yaml:"MqttConfig"`
 	papi.ApiConf             `yaml:"ApiConfig"`
 	Duration                 int    `yaml:"Duration"`
 	LogLevel                 int    `yaml:"LogLevel"`
@@ -93,7 +93,7 @@ func main() {
 	log.Logger.With().Str("instanceId", "myid").Logger()
 	log.Info().Msg("a message")
 	zerolog.SetGlobalLevel(zerolog.InfoLevel + zerolog.Level(conf.LogLevel))
-	conf.MqttConf.LogLevel = conf.LogLevel
+	conf.MqttConfig.LogLevel = conf.LogLevel
 	conf.EventHubConfig.LogLevel = conf.LogLevel
 	conf.ControllerConfig.LogLevel = conf.LogLevel
 
@@ -110,7 +110,7 @@ func main() {
 	eh, err = event_hub.NewEventHub(ctx, wg, conf.EventHubConfig)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create event hub")
-		mqtt, err = pmqtt.NewMqtt(ctx, wg, conf.MqttConf)
+		mqtt, err = pmqtt.NewMqtt(ctx, wg, conf.MqttConfig)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to create mqtt")
 			// or a Display if we fail to initiate a new event hub
