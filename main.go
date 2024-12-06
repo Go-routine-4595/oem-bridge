@@ -27,7 +27,7 @@ import (
 
 const (
 	config  = "/opt/oem-bridge/config.yaml"
-	version = 0.27
+	version = 0.31
 )
 
 var CompileDate string
