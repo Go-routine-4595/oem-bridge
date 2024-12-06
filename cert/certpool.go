@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -51,8 +52,12 @@ func (c *CertPoolWithAccess) AddCert(certPEM []byte) error {
 }
 
 // ListCerts prints the subjects of all certificates in the pool
-func (c *CertPoolWithAccess) ListCerts() {
+func (c *CertPoolWithAccess) ListCerts() string {
+	var (
+		res []string
+	)
 	for _, cert := range c.certificates {
-		fmt.Printf("Certificate Subject: %s\n", cert.Subject)
+		res = append(res, fmt.Sprintf("Subject: %s", cert.Subject.String()))
 	}
+	return strings.Join(res, "\n")
 }

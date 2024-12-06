@@ -4,47 +4,81 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
-	"github.com/rs/zerolog"
 	"os"
 	"reflect"
+	"strings"
 )
 
-func ShowCertificatePool(certPool *x509.CertPool, logger zerolog.Logger) {
-	for _, certificate := range certPool.Subjects() {
-		logger.Info().Int("size", len(certificate)).Msgf("Certificates in pool: %s\n", string(certificate))
-	}
+// Map of ExtKeyUsage to strings
+var extKeyUsageMap = map[x509.ExtKeyUsage]string{
+	x509.ExtKeyUsageAny:                            "Any",
+	x509.ExtKeyUsageServerAuth:                     "ServerAuth",
+	x509.ExtKeyUsageClientAuth:                     "ClientAuth",
+	x509.ExtKeyUsageCodeSigning:                    "CodeSigning",
+	x509.ExtKeyUsageEmailProtection:                "EmailProtection",
+	x509.ExtKeyUsageIPSECEndSystem:                 "IPSECEndSystem",
+	x509.ExtKeyUsageIPSECTunnel:                    "IPSECTunnel",
+	x509.ExtKeyUsageIPSECUser:                      "IPSECUser",
+	x509.ExtKeyUsageTimeStamping:                   "TimeStamping",
+	x509.ExtKeyUsageOCSPSigning:                    "OCSPSigning",
+	x509.ExtKeyUsageMicrosoftServerGatedCrypto:     "MicrosoftServerGatedCrypto",
+	x509.ExtKeyUsageNetscapeServerGatedCrypto:      "NetscapeServerGatedCrypto",
+	x509.ExtKeyUsageMicrosoftCommercialCodeSigning: "MicrosoftCommercialCodeSigning",
+	x509.ExtKeyUsageMicrosoftKernelCodeSigning:     "MicrosoftKernelCodeSigning",
 }
 
-func ShowCertificatePoolFromFile(certPoolFile string, logger zerolog.Logger) {
+// Map of KeyUsage constants to their string representations
+var keyUsageMap = map[x509.KeyUsage]string{
+	x509.KeyUsageDigitalSignature:  "DigitalSignature",
+	x509.KeyUsageContentCommitment: "ContentCommitment",
+	x509.KeyUsageKeyEncipherment:   "KeyEncipherment",
+	x509.KeyUsageDataEncipherment:  "DataEncipherment",
+	x509.KeyUsageKeyAgreement:      "KeyAgreement",
+	x509.KeyUsageCertSign:          "CertSign",
+	x509.KeyUsageCRLSign:           "CRLSign",
+	x509.KeyUsageEncipherOnly:      "EncipherOnly",
+	x509.KeyUsageDecipherOnly:      "DecipherOnly",
+}
+
+func ShowCertificatePool(certPool *x509.CertPool) string {
+	var res []string
+	for _, certificate := range certPool.Subjects() {
+		res = append(res, string(certificate))
+	}
+	return strings.Join(res, "\n")
+}
+
+func ShowCertificatePoolFromFile(certPoolFile string) (string, error) {
 	certPool := NewCertPoolWithAccess()
 
 	certPoolPEM, err := os.ReadFile(certPoolFile)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to read certificate pool")
-		return
+		return "", errors.Join(err, fmt.Errorf("Failed to read certificate pool: %s \n", certPoolFile))
 	}
 
 	err = certPool.AddCert(certPoolPEM)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to add certificate to pool")
+		return "", errors.Join(err, fmt.Errorf("Failed to add certificate to pool: %s \n", certPoolFile))
 	}
-	certPool.ListCerts()
+
+	return certPool.ListCerts(), nil
 }
 
-func ShowCertificate(certFile string, logger zerolog.Logger) {
+func ShowCertificate(certFile string) (string, error) {
+	var res []string
+
 	f, err := os.Open(certFile)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to open certificate")
-		return
+		return "", errors.Join(err, fmt.Errorf("Failed to open certificate: %s \n", certFile))
 	}
 
 	defer f.Close()
 
 	b, err := os.ReadFile(certFile)
 	if err != nil {
-		logger.Error().Err(err).Msgf("Failed to read certificate: %s \n", certFile)
-		return
+		return "", errors.Join(err, fmt.Errorf("Failed to read certificate: %s \n", certFile))
 	}
 
 	// Decode the PEMs block
@@ -56,58 +90,61 @@ func ShowCertificate(certFile string, logger zerolog.Logger) {
 	for len(rest) > 0 {
 		block, rest = pem.Decode(rest)
 		if block == nil || block.Type != "CERTIFICATE" {
-			logger.Error().Msgf("Failed to decode PEM block containing the certificate: %s \n", certFile)
-			return
+			return "", errors.New("failed to decode PEM block containing the certificate")
 		}
 
 		certs, err := x509.ParseCertificates(block.Bytes)
 		if err != nil {
-			logger.Error().Err(err).Msgf("Failed to parse certificate: %s \n", certFile)
-			return
+			return "", errors.Join(err, fmt.Errorf("Failed to parse certificate: %s \n", certFile))
 		}
 
 		for _, cert := range certs {
-			ShowCertificateDetail(cert, logger)
+			res = append(res, ShowCertificateDetail(cert))
 		}
 	}
+	return strings.Join(res, "\n"), nil
 }
 
-func ShowCertificateDetail(cert *x509.Certificate, logger zerolog.Logger) {
-	logger.Info().Msgf("Subject: %s\n", cert.Subject.String())
-	logger.Info().Msgf("Issuer: %s\n", cert.Issuer.String())
-	logger.Info().Msgf("Not Before: %s\n", cert.NotBefore.String())
-	logger.Info().Msgf("Not After: %s\n", cert.NotAfter.String())
-	logger.Info().Msgf("Key Usage: %s\n", cert.KeyUsage)
-	logger.Info().Msgf("Ext Key Usage: %s\n", cert.ExtKeyUsage)
-	logger.Info().Msgf("Basic Constraints Valid: %t\n", cert.IsCA)
-	logger.Info().Msgf("DNS Names: %s\n", cert.DNSNames)
-	logger.Info().Msgf("IP Addresses: %s\n", cert.IPAddresses)
-	logger.Info().Msgf("Email Addresses: %s\n", cert.EmailAddresses)
-	logger.Info().Msgf("URIs: %s\n", cert.URIs)
+func ShowCertificateDetail(cert *x509.Certificate) string {
+	var res []string
+
+	res = append(res, fmt.Sprintf("Subject: %s", cert.Subject.String()))
+	res = append(res, fmt.Sprintf("Issuer: %s", cert.Issuer.String()))
+	res = append(res, fmt.Sprintf("Not Before: %s", cert.NotBefore.String()))
+	res = append(res, fmt.Sprintf("Not After: %s", cert.NotAfter.String()))
+	res = append(res, fmt.Sprintf("Key Usage: %s", keyUsageToStrings(cert.KeyUsage)))
+	res = append(res, fmt.Sprintf("Ext Key Usage: %s", extKeyUsageToString(cert.ExtKeyUsage)))
+	res = append(res, fmt.Sprintf("Basic Constraints Valid: %t", cert.IsCA))
+	res = append(res, fmt.Sprintf("DNS Names: %s", cert.DNSNames))
+	res = append(res, fmt.Sprintf("IP Addresses: %s", cert.IPAddresses))
+	res = append(res, fmt.Sprintf("Email Addresses: %s", cert.EmailAddresses))
+	res = append(res, fmt.Sprintf("URIs: %s", cert.URIs))
+
+	return strings.Join(res, "\n")
 }
 
-func listCertificates(certPool *x509.CertPool, logger zerolog.Logger) {
+func listCertificates(certPool *x509.CertPool) (string, error) {
+	var list []string
+
 	poolValue := reflect.ValueOf(certPool).Elem()
 	if poolValue.Kind() != reflect.Struct {
-		logger.Error().Msg("unexpected type: expected a struct")
-		return
+		return "", errors.New("unexpected type: expected a struct")
 	}
 
 	// Retrieve the 'byName' field which is a map of name to certificates
 	certsField := poolValue.FieldByName("byName")
 	if !certsField.IsValid() {
-		logger.Error().Msg("unexpected internal structure: no 'byName' field")
-		return
+		return "", errors.New("unexpected internal structure: no 'byName' field")
 	}
 
 	certsMap := certsField.Interface().(map[string][]*x509.Certificate)
 	for name, certs := range certsMap {
-		logger.Debug().Msgf("Certificates for common name: %s\n", name)
+		list = append(list, fmt.Sprintf("Subject: %s", name))
 		for _, cert := range certs {
-			logger.Info().Msgf("  Subject: %s\n", cert.Subject)
-			logger.Info().Msgf("  Issuer: %s\n", cert.Issuer)
+			list = append(list, fmt.Sprintf("  Subject: %s \n  Issuer: %s \n", cert.Subject.String(), cert.Issuer.String()))
 		}
 	}
+	return strings.Join(list, "\n"), nil
 }
 
 // LoadCert loads and returns a configured tls.Config using the provided ControllerConfig for TLS settings.
@@ -139,4 +176,28 @@ func LoadCert(keyFile string, certFile string, bundleFile string) (*tls.Config, 
 		RootCAs:            caCertPool,
 		InsecureSkipVerify: true,
 	}, nil
+}
+
+// extKeyUsageToString converts an ExtKeyUsage to a string using the map.
+func extKeyUsageToString(eku []x509.ExtKeyUsage) string {
+	var usages []string
+	for _, e := range eku {
+		if usageStr, exists := extKeyUsageMap[e]; exists {
+			usages = append(usages, usageStr)
+		}
+		usages = append(usages, "Unknown")
+	}
+	return strings.Join(usages, ", ")
+}
+
+// keyUsageToStrings converts a KeyUsage bitmask to a slice of strings
+func keyUsageToStrings(ku x509.KeyUsage) string {
+	var usages []string
+	for bit, desc := range keyUsageMap {
+		if ku&bit != 0 {
+			usages = append(usages, desc)
+		}
+	}
+
+	return strings.Join(usages, ", ")
 }

@@ -56,14 +56,30 @@ func NewController(conf ControllerConfig, svc model.IService) *Controller {
 		logger.Error().Err(err).Msg("Failed to load CA certificate; using insecure skip verify")
 	}
 	if btls {
-		logger.Debug().Msg("Checking certificates pool")
-		cert.ShowCertificatePool(tlsConfig.RootCAs, logger)
-		logger.Debug().Msg("Checking certificates client")
-		cert.ShowCertificate(conf.Cert, logger)
-		logger.Debug().Msg("Checking certificates CA bundle")
-		cert.ShowCertificate(conf.CABundle, logger)
-		logger.Debug().Msg("Checking certificates Pool from file")
-		cert.ShowCertificatePoolFromFile(conf.CABundle, logger)
+		var (
+			s string
+			e error
+		)
+		s = cert.ShowCertificatePool(tlsConfig.RootCAs)
+		logger.Debug().Msgf("Checking certificates pool: \n%s \n ", s)
+		s, e = cert.ShowCertificate(conf.Cert)
+		if e != nil {
+			logger.Error().Err(e).Msg("Failed to show certificate")
+		} else {
+			logger.Debug().Msgf("Checking certificates client:\n%s \n ", s)
+		}
+		s, e = cert.ShowCertificate(conf.CABundle)
+		if e != nil {
+			logger.Error().Err(e).Msg("Failed to show certificate")
+		} else {
+			logger.Debug().Msgf("Checking certificates CA bundle \n%s \n ", s)
+		}
+		s, e = cert.ShowCertificatePoolFromFile(conf.CABundle)
+		if e != nil {
+			logger.Error().Err(e).Msg("Failed to show certificate")
+		} else {
+			logger.Debug().Msgf("Checking certificates Pool from file \n%s \n ", s)
+		}
 	}
 
 	return &Controller{
