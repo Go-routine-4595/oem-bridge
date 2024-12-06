@@ -34,7 +34,7 @@ func (c *CertPoolWithAccess) AddCert(certPEM []byte) error {
 
 	rest = certPEM
 	for len(rest) > 0 {
-		block, rest = pem.Decode(certPEM)
+		block, rest = pem.Decode(rest)
 		if block == nil || block.Type != certificate {
 			return fmt.Errorf("failed to decode PEM block containing the certificate")
 		}
