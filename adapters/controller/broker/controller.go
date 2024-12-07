@@ -6,15 +6,36 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"github.com/Go-routine-4595/oem-bridge/cert"
-	uuid "github.com/satori/go.uuid"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/Go-routine-4595/oem-bridge/cert"
 	"github.com/Go-routine-4595/oem-bridge/model"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
-	"github.com/streadway/amqp"
+	uuid "github.com/satori/go.uuid"
+)
+
+const (
+	secureURI         = "amqps"
+	unsecureURI       = "amqp"
+	reconnectInterval = 5 * time.Second
+)
+
+var (
+	ErrWrongScheme                  = errors.New("URI scheme must be amqps")
+	ErrWrongQueue                   = errors.New("Queue name must be specified")
+	ErrWrongKey                     = errors.New("Key must be specified")
+	ErrWrongCert                    = errors.New("Cert must be specified")
+	ErrWrongCA                      = errors.New("CA bundle must be specified")
+	ErrWrongLogLevel                = errors.New("Log level must be specified")
+	ErrWrongLogLevelValue           = errors.New("Log level must be between 0 and 5")
+	ErrWrongInsecureSkipVerify      = errors.New("InsecureSkipVerify must be specified")
+	ErrWrongInsecureSkipVerifyValue = errors.New("InsecureSkipVerify must be a boolean")
+	ErrWrongConnectionString        = errors.New("Connection string must be specified")
+	ErrWrongControllerType          = errors.New("Controller type must be specified")
 )
 
 type ControllerConfig struct {
@@ -39,8 +60,6 @@ type Controller struct {
 	dialtls          bool
 }
 
-const reconnectInterval = 5 * time.Second
-
 // NewController initializes and returns a new Controller instance with the specified configuration and service.
 // It sets up a logger, loads TLS certificates, and handles errors with insecure skip verify as fallback.
 func NewController(conf ControllerConfig, svc model.IService) *Controller {
@@ -53,7 +72,7 @@ func NewController(conf ControllerConfig, svc model.IService) *Controller {
 			InsecureSkipVerify: true,
 		}
 		btls = false
-		logger.Error().Err(err).Msg("Failed to load CA certificate; using insecure skip verify")
+		logger.Error().Err(err).Msg("Failed to load CA certificate; using insecure connection")
 	}
 	if btls {
 		var (
@@ -79,6 +98,13 @@ func NewController(conf ControllerConfig, svc model.IService) *Controller {
 			logger.Error().Err(e).Msg("Failed to show certificate")
 		} else {
 			logger.Debug().Msgf("Checking certificates Pool from file \n%s \n ", s)
+		}
+	}
+
+	err = checkURI(conf.ConnectionString, btls)
+	if err != nil {
+		if errors.Is(err, ErrWrongScheme) {
+			logger.Warn().Err(err).Msg("Wrong scheme")
 		}
 	}
 
@@ -138,7 +164,9 @@ func loadCert(conf ControllerConfig) (*tls.Config, error) {
 // It initializes a new AMQP connection and channel, and declares a durable queue.
 // Returns an error if the connection, channel initialization, or queue declaration fails.
 func (c *Controller) connect() error {
-	var err error
+	var (
+		err error
+	)
 	if c.dialtls {
 		c.logger.Debug().Msg("Dialing TLS")
 		c.conn, err = amqp.DialTLS(c.ConnectionString, c.cfgTls)
@@ -281,4 +309,18 @@ func (c *Controller) Close() error {
 	}
 
 	return err
+}
+
+func checkURI(uriS string, btls bool) error {
+	uri, err := amqp.ParseURI(uriS)
+	if err != nil {
+		return errors.Join(err, fmt.Errorf("Failed to parse URI: %s \n", uri))
+	}
+	if btls {
+		if uri.Scheme != secureURI {
+			return ErrWrongScheme
+		}
+	}
+
+	return nil
 }
