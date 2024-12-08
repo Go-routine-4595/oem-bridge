@@ -171,11 +171,12 @@ func LoadCert(keyFile string, certFile string, bundleFile string) (*tls.Config, 
 		return nil, fmt.Errorf("failed to append CA certificates")
 	}
 
-	return &tls.Config{
+	test := &tls.Config{
 		Certificates:       []tls.Certificate{cert},
 		RootCAs:            caCertPool,
 		InsecureSkipVerify: true,
-	}, nil
+	}
+	return test, nil
 }
 
 // extKeyUsageToString converts an ExtKeyUsage to a string using the map.
