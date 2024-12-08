@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-type MqttConf struct {
+type MqttConfig struct {
 	Connection string `yaml:"ConnectionString"`
 	Topic      string `yaml:"Topic"`
 	Key        string `yaml:"Key"`
@@ -33,7 +33,7 @@ type Mqtt struct {
 // NewMqtt initializes a new Mqtt instance with given configuration, log level, and context.
 // It sets up the logger, client options, and handles connection and reconnection behaviors.
 // It also handles graceful disconnection upon context cancellation and returns the created Mqtt instance or error.
-func NewMqtt(ctx context.Context, wg *sync.WaitGroup, conf MqttConf) (*Mqtt, error) {
+func NewMqtt(ctx context.Context, wg *sync.WaitGroup, conf MqttConfig) (*Mqtt, error) {
 	var (
 		err error
 		l   zerolog.Logger
