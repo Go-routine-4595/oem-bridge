@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"sync"
@@ -128,7 +129,20 @@ func main() {
 
 	// new middleware logger
 	svc = middleware.NewLogger(conf.ControllerConfig, svc)
+
 	// new controller with RabbitMQ connection
+	if conf.ControllerConfig.ConnectionString == "" {
+		conf.ControllerConfig.ConnectionString, err = connectionString(
+			conf.ControllerConfig.Scheme,
+			conf.ControllerConfig.Host,
+			conf.ControllerConfig.UserName,
+			conf.ControllerConfig.Password,
+			conf.ControllerConfig.Port,
+			conf.ControllerConfig.Resource)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to create connection string")
+		}
+	}
 	svr = broker.NewController(conf.ControllerConfig, svc)
 
 	// new Api
@@ -175,4 +189,40 @@ func openConfigFile(s string) Config {
 func processError(err error) {
 	fmt.Println(err)
 	os.Exit(2)
+}
+
+func connectionString(scheme string, base string, user string, pass string, port int, resource string) (string, error) {
+	var (
+		encodedPass string
+		encodedUser string
+		encodedRes  string
+	)
+
+	if port == 0 {
+		return "", errors.New("port is required")
+	}
+	if scheme == "" {
+		return "", errors.New("scheme is required")
+	}
+	if base == "" {
+		return "", errors.New("baseurl is required")
+	}
+	if scheme != "amqp" && scheme != "amqps" && scheme != "mqtt" && scheme != "mqtts" {
+		return "", errors.New("scheme must be amqp, amqps, mqtt or mqtts")
+	}
+
+	encodedPass = url.QueryEscape(pass)
+	encodedUser = url.QueryEscape(user)
+	encodedRes = url.QueryEscape(resource)
+	if user == "" && pass == "" {
+		return fmt.Sprintf("%s://%s:%d/%s", scheme, base, port, encodedRes), nil
+	}
+	if pass == "" {
+		return fmt.Sprintf("%s://%s@%s:%d/%s", scheme, encodedUser, base, port, encodedRes), nil
+	}
+	if user == "" {
+		return fmt.Sprintf("%s://%s:%s@%s:%d/%s", scheme, encodedUser, encodedPass, base, port, encodedRes), nil
+	}
+	return fmt.Sprintf("%s://%s:%s@%s:%d/%s", scheme, encodedUser, encodedPass, base, port, encodedRes), nil
+
 }
