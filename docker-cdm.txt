@@ -1,0 +1,4 @@
+
+git rev-parse HEAD | tail -c 12
+docker build --platform linux/amd64 -t christophe2bu/oem-bridge:<tag> .
+docker tag oem-bridge christophe2bu/oem-bridge:<tag>
