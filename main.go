@@ -110,16 +110,20 @@ func main() {
 	// new gateway (display or eh)
 	eh, err = event_hub.NewEventHub(ctx, wg, conf.EventHubConfig)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to create event hub")
-		mqtt, err = pmqtt.NewMqtt(ctx, wg, conf.MqttConfig)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to create mqtt")
-			// or a Display if we fail to initiate a new event hub
-			gtw = display.NewDisplay()
-			// new service with simple display
-			svc = service.NewService(gtw, conf.Type)
+		if errors.Is(err, event_hub.ErrorConnectionString) {
+			log.Error().Err(err).Msg("Failed to create event hub")
+			mqtt, err = pmqtt.NewMqtt(ctx, wg, conf.MqttConfig)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to create mqtt")
+				// or a Display if we fail to initiate a new event hub
+				gtw = display.NewDisplay()
+				// new service with simple display
+				svc = service.NewService(gtw, conf.Type)
+			} else {
+				svc = service.NewService(mqtt, conf.Type)
+			}
 		} else {
-			svc = service.NewService(mqtt, conf.Type)
+			log.Fatal().Err(err).Msg("Failed to create event hub")
 		}
 
 	} else {
