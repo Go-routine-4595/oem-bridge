@@ -40,6 +40,12 @@ var (
 
 type ControllerConfig struct {
 	ConnectionString   string `yaml:"ConnectionString"`
+	Scheme             string `yaml:"Scheme"`
+	Host               string `yaml:"Host"`
+	Port               int    `yaml:"Port"`
+	UserName           string `yaml:"UserName"`
+	Password           string `yaml:"Password"`
+	Resource           string `yaml:"Resource"`
 	QueueName          string `yaml:"QueueName"`
 	LogLevel           int    `yaml:"LogLevel"`
 	Key                string `yaml:"Key"`
