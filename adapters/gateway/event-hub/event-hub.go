@@ -28,6 +28,8 @@ const (
 	applicationID      = "oem-alarms"
 )
 
+var ErrorConnectionString error = errors.New("connection string must have the event hub name")
+
 type EventHubConfig struct {
 	Connection   string `yaml:"connection"`
 	EventHubName string `yaml:"EventHubName"`
@@ -62,6 +64,10 @@ func NewEventHub(ctx context.Context, wg *sync.WaitGroup, conf EventHubConfig) (
 	producerClient, err = azeventhubs.NewProducerClientFromConnectionString(conf.Connection, conf.EventHubName, clientOptions)
 
 	if err != nil {
+		tmp := errors.New("key \"Endpoint\" must not be empty")
+		if err.Error() == tmp.Error() {
+			return nil, ErrorConnectionString
+		}
 		return nil, errors.Join(err, errors.New("failed to create producer client"))
 	}
 

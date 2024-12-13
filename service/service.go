@@ -39,12 +39,14 @@ func (s *Service) SendAlarm(value []byte) error {
 
 	if s.Type == typeFctsDataModel {
 		event = model.FCTSDataModel{
-			SiteCode:   "NAMEM",
-			TimeStamp:  time.Now().Unix(),
-			SensorId:   "UAS-OEM-alarms",
-			Uom:        "alarm",
-			DataSource: "Honeywell",
-			Value:      string(value),
+			SiteCode:    "NAMEM",
+			SensorId:    "NAMEM-UAS-OEM-alarms-test",
+			DataSource:  "Honeywell simulation",
+			TimeStamp:   time.Now().Unix(),
+			Value:       string(value),
+			Uom:         "OEM alarm",
+			Quality:     "",
+			Annotations: nil,
 		}
 
 		log.Trace().Str("event", event.Value).Msg("sending alarm")
